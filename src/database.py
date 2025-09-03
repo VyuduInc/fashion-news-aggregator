@@ -1,21 +1,3 @@
-import shlex
-import subprocess
-import modal
-
-# Define container dependencies for fashion news aggregator  
-image = modal.Image.debian_slim(python_version="3.11").pip_install(
-    "streamlit==1.49.1",
-    "feedparser==6.0.11", 
-    "requests==2.32.5",
-    "beautifulsoup4==4.13.5",
-    "pandas==2.3.2",
-    "python-dateutil==2.9.0.post0"
-)
-
-app = modal.App(name="fashion-news-aggregator", image=image)
-
-# Embed all source code directly in the deployment
-DATABASE_CODE = '''
 import sqlite3
 import hashlib
 from datetime import datetime, timedelta
@@ -30,7 +12,7 @@ class ArticleDatabase:
     def init_database(self):
         """Initialize database with required tables"""
         conn = sqlite3.connect(self.db_path)
-        conn.execute(\'\'\'
+        conn.execute('''
             CREATE TABLE IF NOT EXISTS articles (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
@@ -42,9 +24,9 @@ class ArticleDatabase:
                 content_hash TEXT UNIQUE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        \'\'\')
+        ''')
         
-        conn.execute(\'\'\'
+        conn.execute('''
             CREATE TABLE IF NOT EXISTS sources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
@@ -55,12 +37,12 @@ class ArticleDatabase:
                 last_updated DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        \'\'\')
+        ''')
         
         # Create indexes for better query performance
-        conn.execute(\'CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_date)\')
-        conn.execute(\'CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source)\')
-        conn.execute(\'CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category)\')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_date)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category)')
         
         conn.commit()
         conn.close()
@@ -72,7 +54,7 @@ class ArticleDatabase:
     
     def generate_content_hash(self, title: str, description: str) -> str:
         """Generate hash for content deduplication"""
-        content = f"{title}|{description or \'\'}"
+        content = f"{title}|{description or ''}"
         return hashlib.md5(content.encode()).hexdigest()
     
     def insert_article(self, article: Dict) -> bool:
@@ -81,21 +63,21 @@ class ArticleDatabase:
             conn = sqlite3.connect(self.db_path)
             
             # Generate IDs and hashes
-            article_id = self.generate_article_id(article[\'title\'], article[\'url\'])
-            content_hash = self.generate_content_hash(article[\'title\'], article.get(\'description\', \'\'))
+            article_id = self.generate_article_id(article['title'], article['url'])
+            content_hash = self.generate_content_hash(article['title'], article.get('description', ''))
             
-            conn.execute(\'\'\'
+            conn.execute('''
                 INSERT OR IGNORE INTO articles 
                 (id, title, url, description, published_date, source, category, content_hash)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            \'\'\', (
+            ''', (
                 article_id,
-                article[\'title\'],
-                article[\'url\'],
-                article.get(\'description\'),
-                article.get(\'published_date\'),
-                article[\'source\'],
-                article.get(\'category\'),
+                article['title'],
+                article['url'],
+                article.get('description'),
+                article.get('published_date'),
+                article['source'],
+                article.get('category'),
                 content_hash
             ))
             
@@ -164,6 +146,32 @@ class ArticleDatabase:
         logging.info(f"Cleaned up {deleted_count} old articles")
         return deleted_count
     
+    def get_sources(self) -> List[Dict]:
+        """Get all sources"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        
+        cursor = conn.execute("SELECT * FROM sources WHERE active = 1")
+        sources = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return sources
+    
+    def insert_source(self, name: str, url: str, rss_url: str, category: str = None):
+        """Insert new source"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute('''
+                INSERT OR IGNORE INTO sources (name, url, rss_url, category)
+                VALUES (?, ?, ?, ?)
+            ''', (name, url, rss_url, category))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logging.error(f"Error inserting source: {e}")
+            return False
+    
     def get_stats(self) -> Dict:
         """Get database statistics"""
         conn = sqlite3.connect(self.db_path)
@@ -172,21 +180,21 @@ class ArticleDatabase:
         total_articles = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
         
         # Articles by category
-        category_counts = dict(conn.execute(\'\'\'
+        category_counts = dict(conn.execute('''
             SELECT category, COUNT(*) 
             FROM articles 
             WHERE category IS NOT NULL 
             GROUP BY category
-        \'\'\').fetchall())
+        ''').fetchall())
         
         # Articles by source
-        source_counts = dict(conn.execute(\'\'\'
+        source_counts = dict(conn.execute('''
             SELECT source, COUNT(*) 
             FROM articles 
             GROUP BY source 
             ORDER BY COUNT(*) DESC 
             LIMIT 10
-        \'\'\').fetchall())
+        ''').fetchall())
         
         # Recent articles (last 24h)
         cutoff = datetime.now() - timedelta(hours=24)
@@ -198,69 +206,8 @@ class ArticleDatabase:
         conn.close()
         
         return {
-            \'total_articles\': total_articles,
-            \'recent_articles_24h\': recent_count,
-            \'by_category\': category_counts,
-            \'top_sources\': source_counts
+            'total_articles': total_articles,
+            'recent_articles_24h': recent_count,
+            'by_category': category_counts,
+            'top_sources': source_counts
         }
-'''
-
-# Define the web server function
-@app.function(
-    timeout=3600,  # 1 hour timeout for long-running aggregation
-    memory=2048,   # 2GB RAM for processing multiple feeds
-    cpu=2.0,       # 2 CPU cores for concurrent feed processing
-    concurrent_inputs=100
-)
-@modal.web_server(8000)
-def run():
-    import os
-    import sys
-    
-    # Create directory structure
-    os.makedirs("/root/app/src", exist_ok=True)
-    os.chdir("/root/app")
-    sys.path.append("/root/app")
-    
-    # Create a simple, reliable Streamlit app
-    with open("app.py", "w") as f:
-        f.write('''import streamlit as st
-
-st.set_page_config(
-    page_title="Fashion & Beauty News Aggregator", 
-    page_icon="👗",
-    layout="wide"
-)
-
-st.title("👗 Fashion & Beauty News Aggregator")
-st.success("✅ Successfully deployed on Modal!")
-
-st.markdown("### 🎉 Deployment Working!")
-st.markdown("- ✅ Container running")
-st.markdown("- ✅ Web server active")
-st.markdown("- ✅ No function call errors")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Sources Ready", "50+")
-with col2:
-    st.metric("Categories", "6")
-with col3:
-    st.metric("Status", "✅ Live")
-
-if st.button("Test Button"):
-    st.balloons()
-    st.success("Everything working perfectly!")
-
-st.markdown("---")
-st.info("✅ Modal deployment successful - ready for full news aggregator!")
-''')
-    
-    # Start Streamlit
-    cmd = "streamlit run app.py --server.port 8000 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"
-    subprocess.Popen(shlex.split(cmd))
-
-
-
-if __name__ == "__main__":
-    app.serve()
