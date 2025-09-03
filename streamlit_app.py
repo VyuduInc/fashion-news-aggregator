@@ -39,6 +39,16 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     }
+    .fresh-article {
+        border-color: rgba(239, 68, 68, 0.5) !important;
+        background: rgba(239, 68, 68, 0.1) !important;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
     .article-title { color: #F1F5F9; font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; line-height: 1.5; }
     .article-meta { color: #CBD5E1; font-size: 0.9rem; margin-bottom: 0.5rem; }
     .article-source { color: #60A5FA; font-weight: 600; }
@@ -100,13 +110,21 @@ def format_time_ago(published_date):
             pub_date = published_date
         now = datetime.now(pub_date.tzinfo) if pub_date.tzinfo else datetime.now()
         diff = now - pub_date
+        
+        # More precise time formatting for micro-targeting
+        total_minutes = diff.total_seconds() / 60
+        
         if diff.days > 0:
             return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
-        elif diff.seconds > 3600:
-            hours = diff.seconds // 3600
-            return f"{hours} hour{'s' if hours > 1 else ''} ago"
-        elif diff.seconds > 60:
-            minutes = diff.seconds // 60
+        elif total_minutes >= 60:
+            hours = int(total_minutes // 60)
+            remaining_minutes = int(total_minutes % 60)
+            if remaining_minutes > 0 and hours < 12:  # Show minutes for recent articles
+                return f"{hours}h {remaining_minutes}m ago"
+            else:
+                return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif total_minutes >= 1:
+            minutes = int(total_minutes)
             return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
         else:
             return "Just now"
@@ -123,17 +141,24 @@ def load_aggregator():
         st.error(f"Error loading aggregator: {e}")
         return None
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=600)  # Reduced cache time for more frequent updates on short time ranges
 def get_articles_data(category_filter, source_filter, time_filter, limit):
     aggregator = load_aggregator()
     if not aggregator:
         return [], {}, [], []
     
+    # More precise time filtering with minutes for micro-targeting
     hours_old = None
-    if time_filter == "1 hour":
-        hours_old = 1
+    if time_filter == "30 minutes":
+        hours_old = 0.5
+    elif time_filter == "1 hour":
+        hours_old = 1.0
+    elif time_filter == "2 hours":
+        hours_old = 2.0
+    elif time_filter == "6 hours":
+        hours_old = 6.0
     elif time_filter == "12 hours":
-        hours_old = 12
+        hours_old = 12.0
     elif time_filter == "1 day":
         hours_old = 24
     elif time_filter == "2 days":
@@ -195,8 +220,8 @@ def main():
     with st.sidebar:
         st.header("🔍 Filters")
         
-        # Time filter
-        time_options = ["All time", "1 hour", "12 hours", "1 day", "2 days", "3 days"]
+        # Time filter with micro precision for short ranges
+        time_options = ["All time", "30 minutes", "1 hour", "2 hours", "6 hours", "12 hours", "1 day", "2 days", "3 days"]
         time_filter = st.selectbox("📅 Time Range", time_options, index=0)
         
         # Get data for filters
@@ -249,8 +274,29 @@ def main():
         
         # Display articles
         for article in articles:
-            st.markdown('<div class="article-card">', unsafe_allow_html=True)
-            st.markdown(f'<div class="article-title">{article["title"]}</div>', unsafe_allow_html=True)
+            # Check if article is very fresh (under 2 hours)
+            is_fresh = False
+            fresh_indicator = ""
+            if article.get('published_date'):
+                try:
+                    if isinstance(article['published_date'], str):
+                        pub_date = datetime.fromisoformat(article['published_date'].replace('Z', '+00:00'))
+                    else:
+                        pub_date = article['published_date']
+                    now = datetime.now(pub_date.tzinfo) if pub_date.tzinfo else datetime.now()
+                    hours_diff = (now - pub_date).total_seconds() / 3600
+                    
+                    if hours_diff <= 1:
+                        is_fresh = True
+                        fresh_indicator = ' <span style="background: #EF4444; color: white; padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.7rem; font-weight: bold;">🔥 HOT</span>'
+                    elif hours_diff <= 2:
+                        fresh_indicator = ' <span style="background: #F59E0B; color: white; padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.7rem; font-weight: bold;">✨ NEW</span>'
+                except:
+                    pass
+            
+            card_class = "article-card" + (" fresh-article" if is_fresh else "")
+            st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
+            st.markdown(f'<div class="article-title">{article["title"]}{fresh_indicator}</div>', unsafe_allow_html=True)
             
             time_ago = format_time_ago(article.get('published_date'))
             st.markdown(

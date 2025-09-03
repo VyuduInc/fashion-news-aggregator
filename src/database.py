@@ -98,7 +98,7 @@ class ArticleDatabase:
                     limit: int = 200,
                     category: Optional[str] = None,
                     source: Optional[str] = None,
-                    hours_old: Optional[int] = None) -> List[Dict]:
+                    hours_old: Optional[float] = None) -> List[Dict]:
         """Get articles with optional filtering"""
         
         conn = sqlite3.connect(self.db_path)

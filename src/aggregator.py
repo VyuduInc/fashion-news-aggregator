@@ -134,7 +134,7 @@ class NewsAggregator:
                           limit: int = 200,
                           category: str = None,
                           source: str = None,
-                          hours_old: int = None) -> List[Dict]:
+                          hours_old: float = None) -> List[Dict]:
         """Get recent articles with filtering"""
         return self.db.get_articles(
             limit=limit,
