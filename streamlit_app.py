@@ -20,18 +20,73 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for professional dark theme
+# Custom CSS for professional dark theme with better readability
 st.markdown("""
 <style>
     .main > div { padding-top: 2rem; }
-    .stTitle { color: #FFFFFF; font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem; text-align: center; }
-    .article-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem; }
-    .article-title { color: #FFFFFF; font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .article-meta { color: #A0A0A0; font-size: 0.9rem; margin-bottom: 0.5rem; }
-    .article-source { color: #4CAF50; font-weight: 500; }
-    .article-category { background: rgba(76, 175, 80, 0.2); color: #4CAF50; padding: 0.2rem 0.5rem; border-radius: 15px; font-size: 0.8rem; }
-    .article-description { color: #CCCCCC; font-size: 0.9rem; line-height: 1.5; margin-bottom: 0.5rem; }
-    .read-more-btn { background: #4CAF50; color: white; padding: 0.4rem 1rem; border: none; border-radius: 5px; text-decoration: none; font-size: 0.9rem; display: inline-block; }
+    .stTitle { color: #F1F5F9; font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem; text-align: center; }
+    .article-card { 
+        background: rgba(30, 41, 59, 0.6); 
+        border: 1px solid rgba(59, 130, 246, 0.3); 
+        border-radius: 8px; 
+        padding: 1rem; 
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    .article-card:hover {
+        background: rgba(30, 41, 59, 0.8);
+        border-color: rgba(59, 130, 246, 0.5);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+    .article-title { color: #F1F5F9; font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; line-height: 1.5; }
+    .article-meta { color: #CBD5E1; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .article-source { color: #60A5FA; font-weight: 600; }
+    .article-category { 
+        background: rgba(59, 130, 246, 0.2); 
+        color: #93C5FD; 
+        padding: 0.2rem 0.5rem; 
+        border-radius: 15px; 
+        font-size: 0.8rem; 
+        font-weight: 500;
+    }
+    .article-description { color: #E2E8F0; font-size: 0.9rem; line-height: 1.6; margin-bottom: 0.5rem; }
+    .read-more-btn { 
+        background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%); 
+        color: white; 
+        padding: 0.5rem 1rem; 
+        border: none; 
+        border-radius: 6px; 
+        text-decoration: none; 
+        font-size: 0.9rem; 
+        font-weight: 500;
+        display: inline-block;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+    }
+    .read-more-btn:hover {
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+        text-decoration: none;
+        color: white;
+    }
+    
+    /* Better sidebar styling */
+    .sidebar .stSelectbox label,
+    .sidebar .stMultiselect label,
+    .sidebar .stRadio label {
+        color: #F1F5F9 !important;
+        font-weight: 600;
+    }
+    
+    /* Improved metric styling */
+    .metric-container {
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
